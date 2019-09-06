@@ -4,7 +4,7 @@
 
 A program that solves sodoku boards of varying difficulties.
 
-:warning: In [solve.py](solve.py), function solve() is recursive, modifying code can potentially cause stack overflow errors.
+:warning: In [solve.py](solve.py#L247), function solve() is recursive, modifying code can potentially cause stack overflow errors.
 
 ## Installation
 
