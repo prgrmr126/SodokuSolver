@@ -1,15 +1,23 @@
-# SodokuSolver
+# SudokuSolver
 
 ## Description
 
-A program that solves sodoku boards of varying difficulties.
+A program that solves sudoku boards of varying difficulties.
 
-:warning: In [solve.py](solve.py#L247), function solve() is recursive, modifying code can potentially cause stack overflow errors.
+## Todo
+
+Generator will be updated to ensure that the board is solvable.
 
 ## Installation
 
 ### python
 Go to [this](https://www.python.org/downloads/) link and download the python (version 3.7+) installer for your operating system.
+
+### pulp
+
+```
+python3 -m pip install pulp
+```
 
 ## Usage
 
@@ -27,7 +35,7 @@ cd path/to/folder
 python3 gen.py
 ```
 
-*If "python3" is not found, try using "python" If an issue persists, attempt downloading python again.*
+*Your command for python (py, python, python3, etc.) may vary on your operating system and what other versions of python you have installed on your machine.*
 
 ## License
 

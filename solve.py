@@ -1,319 +1,131 @@
-from copy import deepcopy
+import pulp
 import time
+import sys
 
-def listIncludes(line, searchInteger, giveCount=False):
-	if (str(searchInteger) in [str(x) for x in line]):
-		if (giveCount):
-			return(True, [str(x) for x in line].count(str(searchInteger)))
-		else:
-			return(True)
-	else:
-		if (giveCount):
-			return(False, 0)
-		else:
-			return(False)
 
-def getAdjacentBoxes(num, dir):
-	if (dir == 'horizontal'):
-		boxes = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
-	elif (dir == 'vertical'):
-		boxes = [[0, 3, 6], [1, 4, 7], [2, 5, 8]]
-	for row in boxes:
-		if num in row:
-			row.remove(num)
-			return(row)
+def cell_name(i, j, k):
+	return 'x_{%d,%d,%d}' % (i, j, k)
 
-def checkSingle(possibles, dir):
-	if (len(possibles) > 0):
-		if (dir == 'horizontal'): val = possibles[0].i
-		elif (dir == 'vertical'): val = possibles[0].j
-		for possible in possibles:
-			if (dir == 'horizontal' and possible.i != val):
-				return(False)
-			elif (dir == 'vertical' and possible.j != val):
-				return(False)
-		return(True)
-	else:
-		return(False)
 
-class Board:
-	def __init__(self, dataSet):
-		self.board = dataSet
+class Sudoku:
+	def __init__(self):
+		self.sudoku_model = pulp.LpProblem('Sudoku', pulp.LpMinimize)
 
-	def getBox(self, boxNum):
-		boxNum *= 3
-		box = []
-		x = (boxNum // 9) * 3
+		var_names = [cell_name(i, j, k)
+					 for i in range(9)
+					 for j in range(9)
+					 for k in range(9)]
 
-		for i in range(3):
-			box.append(self.board[x+i][boxNum % 9:boxNum % 9 + 3])
-		return(box)
+		# Creates all cells
+		self.vars = pulp.LpVariable.dict('%s',
+										 var_names,
+										 lowBound=0,
+										 upBound=1,
+										 cat=pulp.LpInteger)
 
-	def getColumn(self, columnNumber):
-		column = []
+		# Ensures all rows contain all numbers
 		for i in range(9):
-			column.append(self.board[i][columnNumber])
-		return(column)
+			for k in range(9):
+				self.sudoku_model += sum([self.vars[cell_name(i, j, k)]
+										  for j in range(9)]) == 1
 
-	def getRow(self, rowNumber):
-		return(self.board[rowNumber])
-
-	def checkFull(self):
-		for i in range(9):
-			if (listIncludes(self.board[i], 0) > 0): return(False)
-		return(True)
-
-	def checkBoard(self):
-		for i in range(9):
-			if (listIncludes(self.board[i], 0, True)[1] > 0):
-				return(False)
-
-			for j in range(1, 10):
-				if (listIncludes(self.board[i], j, True)[1] > 1):
-					return(False)
-
-			for j in range(1, 10):
-				if (listIncludes(self.getColumn(i), j, True)[1] > 1):
-					return(False)
-
-		return(True)
-
-	def fill(self):
-		code = 1
-
-		for i in range(1, 10):
-			for j in range(9):
-				impossible = False
-				possibles = []
-				box = self.getBox(j)
-				for a in range(3):
-					for b in range(3):
-						if (box[a][b].value == 0):
-							if ((not listIncludes(self.getColumn(box[a][b].j), i)) and (not listIncludes(self.getRow(box[a][b].i), i))):
-								possibles.append(box[a][b])
-						elif (box[a][b].value == i): impossible = True
-
-				if (not impossible):
-					if ((len(possibles) > 1)):
-						pass
-					elif ((len(possibles) == 0)):
-						code = 2
-						return(code)
-					else:
-						possibles[0].setValue(i)
-						code = 0
-		return(code)
-
-	def completeLines(self):
-		code = 1
-
-		for i in range(9):
-			absentColumn = []
-			columnIndex = 0
-
-			absentRow = []
-			rowIndex = 0
-			for j in range(1, 10):
-				if j not in [str(x) for x in self.getColumn(i)]:
-					absentColumn.append(j)
-
-				if (self.getColumn(i)[j - 1].value == 0):
-					columnIndex = j - 1
-
-				if j not in [str(x) for x in self.getRow(i)]:
-					absentRow.append(j)
-
-				if (self.getRow(i)[j - 1].value == 0):
-					rowIndex = j - 1
-
-			if (len(absentColumn) == 1):
-				self.getRow(i)[columnIndex].setValue(absentColumn[0])
-
-			if (len(absentRow) == 1):
-				self.getRow(i)[rowIndex].setValue(absentRow[0])
-
-		return(code)
-
-	def superFill(self):
-
-		code = 1
-
-		for i in range(1, 10):
-			allPossibles = []
-
-			for j in range(9):
-				impossible = False
-				possibles = []
-				box = self.getBox(j)
-				for a in range(3):
-					for b in range(3):
-						if (box[a][b].value == 0):
-							if (not listIncludes(self.getColumn(box[a][b].j), i)):
-								if (not listIncludes(self.getRow(box[a][b].i), i)):
-									possibles.append(box[a][b])
-						elif (box[a][b].value == i):
-							impossible = True
-				if impossible:
-					possibles = []
-
-				allPossibles.append(possibles)
-
-			for j in range(9):
-				selfBox = allPossibles[j]
-
-				rows = []
-				for num in getAdjacentBoxes(j, 'horizontal'):
-					rows.append(allPossibles[num])
-
-				cols = []
-				for num in getAdjacentBoxes(j, 'vertical'):
-					cols.append(allPossibles[num])
-
-				for rowBox in rows:
-					if checkSingle(rowBox, 'horizontal'):
-						newPossibles = []
-						for selfPossible in selfBox:
-							if selfPossible.i != rowBox[0].i:
-								newPossibles.append(selfPossible)
-						selfBox = newPossibles
-
-				for colBox in cols:
-					if checkSingle(colBox, 'vertical'):
-						newPossibles = []
-						for selfPossible in selfBox:
-							if selfPossible.j != colBox[0].j:
-								newPossibles.append(selfPossible)
-						selfBox = newPossibles
-
-				if (len(selfBox) == 1):
-					selfBox[0].setValue(i)
-					code = 0
-		return(code)
-
-	def print(self):
-		print('\n')
-
-		for i in range(9):
-			printline = '  '.join([' '.join([str(x) for x in self.board[i][0:3]]), ' '.join([str(x) for x in self.board[i][3:6]]), ' '.join([str(x) for x in self.board[i][6:9]])])
-			printline = printline.replace('0', ' ')
-			print(printline)
-
-			if ((i + 1) % 3 == 0):
-				print('')
-
-class Node:
-	def __init__(self, i, j, value):
-		self.i = i
-		self.j = j
-		self.value = value
-
-	def setValue(self, newValue):
-		self.value = newValue
-
-	def __repr__(self):
-		return(str(self.value))
-
-	def __str__(self):
-		return(str(self.value))
-
-def findChoice(grid):
-	emptySpots = []
-	for i in range(9):
-		counter = 0
-		index = i
-		box = grid.getBox(i)
-		for a in range(3):
-			for b in range(3):
-				if (box[a][b].value == 0):
-					counter += 1
-		if (counter == 0):
-			counter = 10
-		emptySpots.append(counter)
-
-	i = emptySpots.index(min(emptySpots))
-
-	box = grid.getBox(i)
-	possibilities = [1, 2, 3, 4, 5, 6, 7, 8, 9]
-	counter = 0
-	for a in range(3):
-		for b in range(3):
-			if (box[a][b].value == 0):
-				zeroNode = (box[a][b].i, box[a][b].j)
-			else:
-				possibilities.remove(box[a][b].value)
-
-	return (zeroNode, possibilities)
-
-def solve(board):
-	while (not board.checkFull()):
-		res = board.fill()
-		if (res == 1):
-			res = board.completeLines()
-			if (res == 1):
-				res = board.superFill()
-				if (res == 1):
-					saveBoard = deepcopy(board)
-					coord, opts = findChoice(saveBoard)
-
-					isSolved = False
-
-					for i in range(len(opts)):
-						if (not isSolved):
-							if (not listIncludes(saveBoard.getColumn(coord[1]), opts[i])):
-								if (not listIncludes(saveBoard.getRow(coord[0]), opts[i])):
-									saveBoard.board[coord[0]][coord[1]].setValue(opts[i])
-
-									res = solve(deepcopy(saveBoard))
-
-									if (type(res) == int):
-										if (i + 1 == len(opts)):
-											return(1)
-										else:
-											saveBoard = deepcopy(board)
-									else:
-										board = deepcopy(res)
-										isSolved = True
-								else:
-									pass
-							else:
-								pass
-							if (i + 1 == len(opts)): return(1)
-				elif (res == 2):
-					return(1)
-			elif (res == 2):
-				return(1)
-		elif (res == 2):
-			return(1)
-
-	return(board)
-
-def main():
-	boardToRun = input('Which board would you like to solve? (Must be corresponding to file name): ')
-
-	start_time = time.time()
-
-	with open('./boards/'+boardToRun+'.txt', 'r') as f:
-		content = f.read()
-		grid = [[int(x) for x in list(row)] for row in content.split('\n')[:-1]]
-
-	for i in range(9):
+		# Ensures all columns contain all numbers
 		for j in range(9):
-			grid[i][j] = Node(i, j, grid[i][j])
+			for k in range(9):
+				self.sudoku_model += sum([self.vars[cell_name(i, j, k)]
+										  for i in range(9)]) == 1
 
-	board = Board(grid)
+		# Ensures all boxes contain all numbers
+		for i in range(3):
+			for j in range(3):
 
-	board.print()
+				i_low = i * 3
+				j_low = j * 3
+				block_i_values = range(i_low, i_low + 3)
+				block_j_values = range(j_low, j_low + 3)
 
-	board = solve(board)
+				for k in range(9):
+					self.sudoku_model += sum([self.vars[cell_name(i, j, k)]
+											  for i in block_i_values
+											  for j in block_j_values]) == 1
 
-	if (board == 2):
-		print('IMPOSSIBLE')
-	else:
-		board.print()
+		# Ensures all cells are filled on the board
+		for i in range(9):
+			for j in range(9):
+				self.sudoku_model += sum([self.vars[cell_name(i, j, k)]
+										  for k in range(9)]) == 1
 
-		print('BOARD SOLVED:', board.checkBoard())
+	# Reads the board from file and gives an initial print
+	def initialize_board(self, board):
+		with open(f'boards/{board}.txt', 'r') as f:
+			content = f.read().split('\n')
 
-		print('\n--- %s seconds ---' % (time.time() - start_time))
+		# Takes care of trailing newline at end of file
+		content = content[:-1] if content[-1:] is '' else content
+
+		for i in range(9):
+			for j in range(9):
+				k = int(content[i][j])
+				if k != 0:
+					self.set_cell_value(i, j, k - 1)
+
+				v1 = str(k) if k is not 0 else ' '
+				s1 = ' ' if j is not 8 else ''
+				s2 = '|' if (j + 1) % 3 is 0 and j < 8 else ''
+				print(f'{v1}{s1}{s2}', end='')
+			print()
+
+			if (i + 1) % 3 is 0 and i < 8:
+				print('-' * 19)
+
+	# Sets a cell value to 1
+	def set_cell_value(self, i, j, v):
+		if self.sudoku_model.status != pulp.LpStatusNotSolved:
+			raise RuntimeError('Puzzle has already been solved.')
+
+		self.sudoku_model += self.vars[cell_name(i, j, v)] == 1
+
+	# Gets the value of a cell
+	def get_cell_value(self, i, j):
+		for k in range(9):
+			if self.vars[cell_name(i, j, k)].value() == 1:
+				return k
+		return None
+
+	# Prints the board, this can only be done once the sudoku board is solved
+	def print_board(self):
+		for i in range(9):
+			for j in range(9):
+				k = board.get_cell_value(i, j)
+
+				s1 = ' ' if j is not 8 else ''
+				s2 = '|' if (j + 1) % 3 is 0 and j < 8 else ''
+				print(f'{str(k + 1)}{s1}{s2}', end='')
+			print()
+
+			if (i + 1) % 3 is 0 and i < 8:
+				print('-' * 19)
+
+	# Solves the board
+	def solve(self):
+		status = self.sudoku_model.solve()
+
+		return status == pulp.LpStatusOptimal
+
 
 if __name__ == '__main__':
-	main()
+	board = Sudoku()
+
+	board_name = input('Board name: ')
+
+	board.initialize_board(board_name)
+
+	print('\nSolving board...\n')
+
+	start_time = time.time()
+	if not board.solve():
+		print('Sudoku puzzle is not valid.')
+
+	board.print_board()
+
+	print('\n--- %s seconds ---' % (time.time() - start_time))
