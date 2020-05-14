@@ -7,7 +7,7 @@ def cell_name(i, j, k):
 	return 'x_{%d,%d,%d}' % (i, j, k)
 
 
-class Sudoku:
+class Solver:
 	def __init__(self):
 		self.sudoku_model = pulp.LpProblem('Sudoku', pulp.LpMinimize)
 
@@ -56,10 +56,7 @@ class Sudoku:
 										  for k in range(9)]) == 1
 
 	# Reads the board from file and gives an initial print
-	def initialize_board(self, board):
-		with open(f'boards/{board}.txt', 'r') as f:
-			content = f.read().split('\n')
-
+	def initialize_board(self, content, output=True):
 		# Takes care of trailing newline at end of file
 		content = content[:-1] if content[-1:] is '' else content
 
@@ -69,14 +66,17 @@ class Sudoku:
 				if k != 0:
 					self.set_cell_value(i, j, k - 1)
 
-				v1 = str(k) if k is not 0 else ' '
-				s1 = ' ' if j is not 8 else ''
-				s2 = '|' if (j + 1) % 3 is 0 and j < 8 else ''
-				print(f'{v1}{s1}{s2}', end='')
-			print()
+				if output:
+					v1 = str(k) if k is not 0 else ' '
+					s1 = ' ' if j is not 8 else ''
+					s2 = '|' if (j + 1) % 3 is 0 and j < 8 else ''
+					print(f'{v1}{s1}{s2}', end='')
 
-			if (i + 1) % 3 is 0 and i < 8:
-				print('-' * 19)
+			if output:
+				print()
+
+				if (i + 1) % 3 is 0 and i < 8:
+					print('-' * 19)
 
 	# Sets a cell value to 1
 	def set_cell_value(self, i, j, v):
@@ -96,7 +96,7 @@ class Sudoku:
 	def print_board(self):
 		for i in range(9):
 			for j in range(9):
-				k = board.get_cell_value(i, j)
+				k = self.get_cell_value(i, j)
 
 				s1 = ' ' if j is not 8 else ''
 				s2 = '|' if (j + 1) % 3 is 0 and j < 8 else ''
@@ -106,6 +106,17 @@ class Sudoku:
 			if (i + 1) % 3 is 0 and i < 8:
 				print('-' * 19)
 
+	def get_txt(self):
+		content = ''
+		for i in range(9):
+			for j in range(9):
+				k = self.get_cell_value(i, j)
+				v = '0' if not k and k != 0 else str(k + 1)
+				content += v
+			content += '\n'
+
+		return content
+
 	# Solves the board
 	def solve(self):
 		status = self.sudoku_model.solve()
@@ -114,11 +125,14 @@ class Sudoku:
 
 
 if __name__ == '__main__':
-	board = Sudoku()
+	board = Solver()
 
 	board_name = input('Board name: ')
 
-	board.initialize_board(board_name)
+	with open(f'boards/{board_name}.txt', 'r') as f:
+		content = f.read().split('\n')
+
+	board.initialize_board(content)
 
 	print('\nSolving board...\n')
 

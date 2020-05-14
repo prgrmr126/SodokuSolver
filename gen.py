@@ -1,136 +1,110 @@
-import random
+from solve import Solver
+import pulp
+import numpy as np
 
-# 1 - 5 difficulties
-DIFFICULTY = 1
+# 1 - 3 difficulties
+DIFFICULTY = 3
 
-class Node:
+REMOVE = DIFFICULTY * 20
 
-	def __init__(self, x, y, value):
-		self.x = x
-		self.y = y
-		self.value = value
+class Generator:
+	def __init__(self):
+		self.board = np.zeros((9, 9), dtype=int)
 
-	def getColumn(self, board):
-		column = []
-		for i in range(9):
-			column.append(board[i][self.x])
-		return(column)
+	def generate(self):
+		self.seed()
 
-	def getRow(self, board):
-		return(board[self.y])
+		content = self.get_txt().split('\n')
 
-	def setValue(self, newValue):
-		self.value = newValue
+		solver = Solver()
+		solver.initialize_board(content, False)
+		res = solver.solve()
 
-	def __repr__(self):
-		return(str(self.value))
+		if not res:
+			return
 
-	def __str__(self):
-		return(str(self.value))
+		self.set_board(solver.get_txt())
+		self.de_solve()
+		self.print_board()
 
-def checkBoard(board):
-	for i in range(len(board)):
-		for j in range(9):
-			if (countNode(board[i], j+1) != 1):
-				return(False)
+		# Sets the board to a given content string
+	def set_board(self, content):
+		i = 0
+		content = content.split('\n')
 
-		for j in range(9):
-			if (countNode(board[0][i].getColumn(board), j+1) != 1):
-				return(False)
-
-	return(True)
-
-def countNode(container, num):
-	counter = 0
-	for item in container:
-		if (item.value == num):
-			counter += 1
-
-	return(counter)
-
-def shuffle(board):
-	global DIFFICULTY
-	i = 0
-	while i < (DIFFICULTY * 20):
-		a = random.randint(0, 8)
-		b = random.randint(0, 8)
-		if (board[a][b].value != 0):
-			board[a][b].setValue(0)
-			i += 1
-	return(board)
-
-def boardRestart(board):
-	for i in range(9):
-		for j in range(9):
-			board[i][j] = Node(j, i, 0)
-
-	return(board)
-
-def boardPrint(board):
-	print('\n\n\n')
-	for i in range(len(board)):
-		print(board[i])
-
-def listIncludes(line, num):
-	for i in line:
-		if (i.value == num):
-			return(True)
-	return(False)
-
-def getBox(board, num):
-	num *= 3
-	box = []
-	x = (num // 9) * 3
-
-	for i in range(3):
-		box.append(board[x+i][num % 9:num % 9 + 3])
-	return(box)
-
-board = []
-
-for i in range(9):
-	row = []
-	for j in range(9):
-		row.append(0)
-	board.append(row)
-
-for i in range(9):
-	for j in range(9):
-		board[i][j] = Node(j, i, 0)
-
-i = 1
-while i < 10:
-	j = 0
-	while j < 9:
-		possibles = []
-		box = getBox(board, j)
-		#print(box)
-		for a in range(3):
-			for b in range(3):
-				if (box[a][b].value == 0):
-					if (not listIncludes(box[a][b].getColumn(board), i)):
-						if (not listIncludes(box[a][b].getRow(board), i)):
-							possibles.append(box[a][b])
-		if (len(possibles) == 0):
-			boardRestart(board)
-			i = 1
+		for line in content:
 			j = 0
-		else:
-			chosen = random.choice(possibles)
-			chosen.setValue(i)
+			int_line = [int(x) for x in line]
 
-			j += 1
+			for x in int_line:
+				self.board[i, j] = x
+				j += 1
 
-	i += 1
+			i += 1
 
-boardPrint(board)
-print(checkBoard(board))
+	# Removes certain items on the board to get an incompleted board
+	def de_solve(self):
+		for i in range(REMOVE):
+			original = self.board.copy()
 
-board = shuffle(board)
+			pos = (np.random.randint(0, 9), np.random.randint(0, 9))
 
-board = [[str(x) for x in row] for row in board]
+			while self.board[pos[0], pos[1]] == 0:
+				pos = (np.random.randint(0, 9), np.random.randint(0, 9))
 
-content = '\n'.join([''.join(row) for row in board])+'\n'
+			self.board[pos[0], pos[1]] = 0
 
-with open('./boards/gen.txt', 'w') as f:
-	f.write(content)
+	# Creates a "seed" for the board
+	def seed(self):
+		options = list(range(1, 10))
+		np.random.shuffle(options)
+
+		for i, option in enumerate(options):
+			box_i = (i // 3) * 3
+			box_j = (i % 3) * 3
+
+			p_i = np.random.randint(box_i, box_i + 3)
+			p_j = np.random.randint(box_j, box_j + 3)
+
+			self.board[p_i, p_j] = option
+
+		# Total possibles different seeds:
+		# 9! (different orders of options) * 9 (possible spots in a box) =
+		# 3,265,920 seeds
+
+	def print_board(self):
+		for i in range(9):
+			for j in range(9):
+				k = self.board[i, j]
+
+				v = ' ' if not k else str(k)
+				s1 = ' ' if j is not 8 else ''
+				s2 = '|' if (j + 1) % 3 is 0 and j < 8 else ''
+				print(f'{v}{s1}{s2}', end='')
+			print()
+
+			if (i + 1) % 3 is 0 and i < 8:
+				print('-' * 19)
+
+	def get_txt(self):
+		content = ''
+		for i in range(9):
+			for j in range(9):
+				k = self.board[i, j]
+				v = '0' if not k else str(k)
+				content += v
+			content += '\n'
+
+		return content
+
+if __name__ == "__main__":
+
+	DIFFICULTY = int(input('Difficulty level (1-5): '))
+	REMOVE = DIFFICULTY * 15
+
+	gen = Generator()
+
+	gen.generate()
+
+	with open('./boards/gen.txt', 'w') as f:
+		f.write(gen.get_txt())
